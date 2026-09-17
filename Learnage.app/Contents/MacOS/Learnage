@@ -1,0 +1,13 @@
+#!/bin/bash
+
+VENV="/Users/amre/Projects/Learnage/.venv"
+LOG="$HOME/Library/Logs/Learnage.log"
+
+mkdir -p "$(dirname "$LOG")"
+
+if [ -x "$VENV/bin/python3" ]; then
+    exec "$VENV/bin/python3" -m learnage gui >> "$LOG" 2>&1
+else
+    osascript -e 'display dialog "Learnage virtual environment not found at: '$VENV'" buttons {"OK"} default button 1 with title "Learnage Error" with icon stop'
+    exit 1
+fi

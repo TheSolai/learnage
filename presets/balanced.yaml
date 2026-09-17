@@ -1,0 +1,9 @@
+name: balanced
+description: Default. Quality + speed on a Mac.
+llm: qwen3:14b
+embed: nomic-embed-text
+chunk_target_tokens: 800
+chunk_overlap_tokens: 150
+retrieval_k: 8
+soul_model: qwen3:14b
+soul_max_input_chars: 80000

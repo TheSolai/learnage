@@ -1,0 +1,9 @@
+name: literary
+description: Best prose awareness, slower. Use for fiction & craft books.
+llm: gemma4:31b
+embed: nomic-embed-text
+chunk_target_tokens: 1000
+chunk_overlap_tokens: 200
+retrieval_k: 10
+soul_model: gemma4:31b
+soul_max_input_chars: 120000

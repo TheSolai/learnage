@@ -1,0 +1,9 @@
+name: fast
+description: Snappy on a laptop — small model, smaller chunks.
+llm: qwen3:8b
+embed: nomic-embed-text
+chunk_target_tokens: 600
+chunk_overlap_tokens: 120
+retrieval_k: 6
+soul_model: qwen3:8b
+soul_max_input_chars: 60000

@@ -1,0 +1,1 @@
+"""Persistent storage: SQLite + Chroma."""
