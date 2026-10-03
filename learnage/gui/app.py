@@ -192,6 +192,23 @@ class MainWindow(QMainWindow):
         # Auto-backup
         QTimer.singleShot(2000, self._maybe_backup_on_startup)
 
+        # ⌘K command palette — register handlers + default command set
+        from learnage.gui.command_registry import register_defaults, bind_handler
+        register_defaults()
+        bind_handler("add books", lambda **_: self._open_ingest_or_dialog())
+        bind_handler("toggle theme", lambda **_: self._toggle_theme())
+        bind_handler("open settings", lambda **_: self._open_settings())
+        bind_handler("new chat", lambda **_: self._new_chat_active_window())
+        bind_handler("regenerate soul", lambda **kw: self._cmd_regenerate_soul(kw.get("book_id")))
+        bind_handler("forget book", lambda **kw: self._cmd_forget(kw.get("book_id")))
+        bind_handler("open book", lambda **_: self._cmd_open_book_search())
+        bind_handler("open mind", lambda **_: self._cmd_open_mind_search())
+        bind_handler("new mind", lambda **_: self._on_new_mind_requested())
+        bind_handler("bulk categorize", lambda **_: self._open_weed_or_categorize())
+        bind_handler("back up now", lambda **_: self._maybe_backup_on_startup(force=True))
+        bind_handler("search title", lambda **_: self._focus_search())
+        bind_handler("cancel", lambda **_: True)
+
         self._refresh_library()
 
     def _build_ui(self) -> None:
@@ -349,6 +366,11 @@ class MainWindow(QMainWindow):
         mods = e.modifiers()
         key = e.key()
 
+        # Cmd+K — command palette
+        if key == Qt.Key_K and (mods & Qt.MetaModifier):
+            self._open_command_palette()
+            e.accept()
+            return
         # Cmd+T — toggle theme
         if key == Qt.Key_T and (mods & Qt.MetaModifier):
             self._toggle_theme()
@@ -376,6 +398,70 @@ class MainWindow(QMainWindow):
             return
 
         super().keyPressEvent(e)
+
+    # ---------------------------------------------------------------- palette
+
+    def _open_command_palette(self) -> None:
+        """Open the ⌘K command palette centred over the launcher."""
+        from learnage.gui.command_palette import CommandPalette
+
+        # Decide target context — currently selected book, or library-wide.
+        bid = self._current_book_id
+        if bid:
+            target_kind, target_id = "book", bid
+        else:
+            target_kind, target_id = "library", None
+        palette = CommandPalette(
+            parent=self, target_kind=target_kind, target_id=target_id,
+        )
+        # Centre over the launcher
+        lg_rect = self.geometry()
+        px = lg_rect.x() + (lg_rect.width() - palette.width()) // 2
+        py = lg_rect.y() + 80
+        palette.move(max(0, px), max(0, py))
+        palette.exec()
+
+    def _open_ingest_or_dialog(self) -> bool:
+        # Jump to the Add Books sidebar row.
+        self.sidebar.list.setCurrentRow(5)
+        self.stack.setCurrentIndex(self._INDEX_INGEST)
+        return True
+
+    def _cmd_regenerate_soul(self, book_id) -> bool:
+        if book_id:
+            self._queue_soul(book_id)
+            return True
+        # No book selected — fall back to opening the bulk-regenerate dialog.
+        self.statusBar().showMessage("Pick a book first to regenerate its soul.", 3000)
+        return False
+
+    def _cmd_forget(self, book_id) -> bool:
+        if book_id:
+            self._forget_book(book_id)
+            return True
+        self.statusBar().showMessage("Pick a book first.", 3000)
+        return False
+
+    def _cmd_open_book_search(self) -> bool:
+        self.stack.setCurrentIndex(self._INDEX_EMPTY)
+        self.book_list.search.setFocus()
+        self.book_list.search.selectAll()
+        return True
+
+    def _cmd_open_mind_search(self) -> bool:
+        # The sidebar shows the Mind list directly — focus the first row.
+        self.sidebar.mind_list.setFocus()
+        return True
+
+    def _open_weed_or_categorize(self) -> bool:
+        # For now just open the Weed dialog.
+        self._open_weed_dialog()
+        return True
+
+    def _focus_search(self) -> bool:
+        self.book_list.search.setFocus()
+        self.book_list.search.selectAll()
+        return True
 
     def _new_chat_active_window(self) -> None:
         """Start a new chat session in the focused window (book window or global chat)."""
