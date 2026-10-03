@@ -245,7 +245,39 @@ def test_main_window_close_is_clean(main_window):
     assert main_window._closed is True
 
 
-# ---------------------------------------------------------------- long-run soak
+def test_book_window_constructs_against_mocked_ollama(qapp, tmp_path):
+    """BookWindow must construct without crashing. Regression for the
+    QFontMetricsF import bug — opening any book from the launcher used to
+    raise NameError on the BookEditView tab."""
+    from pathlib import Path
+    from unittest.mock import MagicMock
+    from learnage.config import Preset
+    from learnage.store.library import Library, Book
+    from learnage.gui.book_window import BookWindow
+
+    library = Library(tmp_path / "library.db")
+    book = Book(
+        id="1234abcd", title="BookWindow Test", author="Anne",
+        source_path="/tmp/bw.epub", source_format="epub",
+        source_hash="x" * 64, byte_size=1, char_count=1,
+        chunk_count=5, ingested_at="2026-01-01T00:00:00",
+        soul_json=None, soul_generated_at=None, soul_status="ok",
+    )
+    vectors = MagicMock()
+    vectors.get_all_chunks.return_value = []
+    vectors.query_multi.return_value = []
+    ollama = MagicMock()
+    preset = Preset(name="balanced")
+    win = BookWindow(
+        book=book, library=library, vectors=vectors, ollama=ollama,
+        preset=preset, home=Path(tmp_path),
+        on_submit_ingest=lambda *a, **k: None,
+        on_submit_soul=lambda *a, **k: None,
+        on_regenerate_soul=lambda *a, **k: None,
+    )
+    assert win.book.id == book.id
+    win.close()
+    library.close()
 
 @pytest.mark.timeout(60)
 def test_main_window_soak_30_seconds(qapp, tmp_path):
