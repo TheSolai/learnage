@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+
+# data (per-user library state — never commit)
+data/library.db
+data/library.db-*
+data/vectors/
+data/samples/cache/
+data/sessions/
+
+# os
+.DS_Store
+Thumbs.db
+
+# env
+.env
+.env.local
+
+# uv
+uv.lock.local
