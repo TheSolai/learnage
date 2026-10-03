@@ -24,6 +24,7 @@ from PySide6.QtWidgets import (
 
 from learnage.gui import covers
 from learnage.gui.theme import PALETTE
+from learnage.gui.widgets import html_escape
 from learnage.store.soul import SoulRecord
 from learnage.store.library import Book
 
