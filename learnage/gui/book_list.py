@@ -263,8 +263,8 @@ class BookListWidget(QWidget):
             # Quality — most chunks first, then most recent
             visible.sort(key=lambda b: (
                 -(b.chunk_count or 0),
-                -(int(time.mktime(time.strptime(b.ingested_at, "%Y-%m-%dT%H:%M:%S")))
-                  if b.ingested_at else 0,
+                -(int(time.mktime(time.strptime(b.ingested_at, "%Y-%m-%dT%H:%M:%S"))))
+                if b.ingested_at else 0,
             ))
         elif sort_idx == 9:
             visible.sort(key=lambda b: b.ingested_at or "", reverse=True)
