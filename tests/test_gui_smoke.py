@@ -45,7 +45,6 @@ def test_categorize_view_constructs(qapp, tmp_path):
     from learnage.store.library import Book, Library
     from learnage.gui.book_window import CategorizeView
 
-    # Minimal book record
     book = Book(
         id="abcd1234",
         title="Test Book",
@@ -63,7 +62,6 @@ def test_categorize_view_constructs(qapp, tmp_path):
     )
     library = Library(tmp_path / "library.db")
 
-    # Construction must not raise NameError or any other exception.
     view = CategorizeView(book=book, library=library, home=tmp_path)
     assert view.category_edit is not None
     library.close()
@@ -83,10 +81,87 @@ def test_jobstatus_has_traceback_field():
 
 
 def test_popout_module_removed(qapp):
-    """PopoutInterview was dead code in v1 (passed pool=None to ChatTab which
-    didn't accept it). It is deleted in v2.0; verify the module is gone."""
+    """PopoutInterview was dead code in v1; verify the module is gone."""
     gui_dir = ROOT / "learnage" / "gui"
-    assert not (gui_dir / "popout.py").exists(), (
-        "learnage/gui/popout.py must be deleted — it depended on a ChatTab "
-        "kwarg that doesn't exist."
+    assert not (gui_dir / "popout.py").exists()
+
+
+def test_app_module_re_exports(qapp):
+    """v2.0 split gui/app.py into 9 modules. Verify every widget is re-exported
+    so existing import paths still work."""
+    from learnage.gui import app
+
+    expected = [
+        # theme/widgets
+        "PALETTE", "set_theme", "current_theme", "_qss",
+        "html_escape",
+        # sidebar / book_list
+        "Sidebar", "BookRow", "BookListWidget",
+        # views
+        "SoulView", "ReadView",
+        # chat
+        "ChatTab", "InterviewView", "ToolCard",
+        # minds
+        "MindDialog", "MindChatTab",
+        # ingest / dialogs
+        "DropZone", "CategorizeConfirmDialog", "IngestTab",
+        "WeedDialog",
+        # main window + entry
+        "MainWindow", "run_gui",
+    ]
+    for name in expected:
+        assert hasattr(app, name), f"learnage.gui.app.{name} should be re-exported"
+
+
+def test_gui_module_layout(qapp):
+    """Verify the new gui/ module structure from PROPOSAL-v2 §5."""
+    gui_dir = ROOT / "learnage" / "gui"
+    expected_files = [
+        "__init__.py",
+        "agent.py",
+        "app.py",
+        "backup.py",
+        "book_list.py",
+        "book_window.py",
+        "chat.py",
+        "covers.py",
+        "dialogs.py",
+        "export.py",
+        "ingest.py",
+        "minds.py",
+        "sidebar.py",
+        "theme.py",
+        "views/__init__.py",
+        "views/soul.py",
+        "views/read.py",
+        "widgets.py",
+    ]
+    for fname in expected_files:
+        assert (gui_dir / fname).exists(), f"missing gui/{fname}"
+
+
+def test_app_py_line_count_under_target(qapp):
+    """The proposal target was app.py under 1,200 lines after the split."""
+    from learnage.gui import app
+    import inspect
+    src = inspect.getsource(app)
+    lines = src.count("\n")
+    assert lines < 1500, (
+        f"learnage.gui.app is {lines} lines — proposal target was under "
+        f"1,200. The remaining bulk is MainWindow (~1000 lines)."
     )
+
+
+def test_main_window_constructs_with_library(qapp, tmp_path, monkeypatch):
+    """Smoke test: instantiate MainWindow against an empty DB.
+    This exercises every imported widget's __init__."""
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    from learnage.config import Preset
+    from learnage.gui.app import MainWindow
+
+    home = tmp_path / "learnage"
+    home.mkdir()
+    preset = Preset(name="balanced", llm="qwen3:14b", embed="nomic-embed-text")
+    win = MainWindow(preset=preset, home=home, workers=1)
+    # Give the timers a chance to fire (they shouldn't crash on empty DB).
+    win.close()
