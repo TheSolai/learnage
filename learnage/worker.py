@@ -50,6 +50,7 @@ class JobStatus:
     chunks: int = 0
     soul_status: Optional[str] = None
     error: Optional[str] = None
+    traceback: Optional[str] = None
 
 
 # --------------------------------------------------------------- worker fn
@@ -322,6 +323,7 @@ class IngestPool:
                     chunks=result.get("chunks", 0),
                     soul_status=result.get("soul_status"),
                     error=result.get("error"),
+                    traceback=result.get("traceback"),
                 )
             self.statuses[jid] = status
             if on_update is not None:

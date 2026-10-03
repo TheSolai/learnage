@@ -346,7 +346,10 @@ class AgentRunner(QRunnable):
         try:
             self._run()
         except Exception as e:  # noqa: BLE001
-            self.signals.error.emit(f"{type(e).__name__}: {e}")
+            import traceback
+            self.signals.error.emit(
+                f"{type(e).__name__}: {e}\n{traceback.format_exc()}"
+            )
 
     def _run(self) -> None:
         tools = self._build_tools()

@@ -2163,7 +2163,20 @@ class IngestTab(QWidget):
             t = time.strftime("%H:%M:%S", time.localtime(s.started_at)) if s.started_at else ""
             self.table.setItem(row, 3, QTableWidgetItem(t))
             err = (s.error or "")[:80]
-            self.table.setItem(row, 4, QTableWidgetItem(err))
+            err_item = QTableWidgetItem(err)
+            # Surface the full traceback / soul failure reason on hover so
+            # silent soul failures don't disappear from the UI.
+            if s.traceback or s.error:
+                tooltip_parts = []
+                if s.error:
+                    tooltip_parts.append(s.error)
+                if s.soul_status:
+                    tooltip_parts.append(f"soul: {s.soul_status}")
+                if s.traceback:
+                    tooltip_parts.append("---")
+                    tooltip_parts.append(s.traceback)
+                err_item.setToolTip("\n".join(tooltip_parts))
+            self.table.setItem(row, 4, err_item)
 
 
 # ----------------------------------------------------------------- main window
@@ -2192,7 +2205,10 @@ class MainWindow(QMainWindow):
         self._section = "library"
         self._closed = False
         self._current_book_id: Optional[str] = None
-        self._popouts: dict[str, "PopoutInterview"] = {}
+        # Popouts are dead-code in v1 — they used to launch a separate
+        # PopoutInterview window that depended on an unsupported ChatTab kwarg.
+        # Popout will be reimplemented in v2 as a flag on BookWindow.
+        self._popouts: dict[str, object] = {}
 
         self.setWindowTitle("Learnage")
         self.resize(1280, 800)
@@ -3105,12 +3121,6 @@ class MainWindow(QMainWindow):
                 _run_job, job.__dict__, pool.preset.__dict__, str(pool.home)
             )
             fut.add_done_callback(pool._make_done_callback(jid, None))
-
-    # ---------------------------------------------------------------- popout
-
-    def _open_popout(self, book_id: str) -> None:
-        # Popouts are now per-book BookWindow instances.
-        self._open_book(book_id)
 
     # ---------------------------------------------------------------- refresh
 
