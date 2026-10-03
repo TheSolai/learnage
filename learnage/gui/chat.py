@@ -473,10 +473,18 @@ class InterviewView(QWidget):
             f"color: {PALETTE['text']}; font-size: 16px; font-weight: 600;"
         )
         h.addWidget(title)
+        # Cover + subtitle row
+        sub_row = QHBoxLayout()
+        sub_row.setSpacing(10)
+        self.cover_lbl = QLabel()
+        self.cover_lbl.setFixedSize(28, 42)
+        self.cover_lbl.setVisible(False)
+        sub_row.addWidget(self.cover_lbl)
         self.subtitle = QLabel("Pick a book to interview")
         self.subtitle.setTextFormat(Qt.PlainText)
         self.subtitle.setStyleSheet(f"color: {PALETTE['text_muted']}; font-size: 12px;")
-        h.addWidget(self.subtitle)
+        sub_row.addWidget(self.subtitle, 1)
+        h.addLayout(sub_row)
 
         self.session_lbl = QLabel("")
         self.session_lbl.setStyleSheet(f"color: {PALETTE['text_dim']}; font-size: 10px;")
@@ -511,9 +519,18 @@ class InterviewView(QWidget):
 
     def show_book(self, book: Book) -> None:
         import uuid
+        from learnage.gui import covers as _covers
         self._book_id = book.id
         self.subtitle.setTextFormat(Qt.PlainText)
         self.subtitle.setText(f"with {book.title}")
+        # Show cover thumbnail next to the subtitle
+        pix = _covers.extract_or_placeholder(
+            {"title": book.title}, book.source_format, book.source_path,
+        )
+        self.cover_lbl.setPixmap(
+            pix.scaled(28, 42, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        )
+        self.cover_lbl.setVisible(True)
         self.chat._restrict_book_ids = [book.id]
         # Create a new session for this book
         session_id = str(uuid.uuid4())[:8]

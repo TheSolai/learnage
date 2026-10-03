@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QFont, QFontDatabase
 from PySide6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -21,6 +22,7 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from learnage.gui import covers
 from learnage.gui.theme import PALETTE
 from learnage.store.soul import SoulRecord
 from learnage.store.library import Book
@@ -51,6 +53,25 @@ class SoulView(QScrollArea):
 
     def show_soul(self, book: Book, soul: SoulRecord) -> None:
         self._clear()
+
+        # Header row: cover thumb on the left, title + author on the right
+        header_row = QHBoxLayout()
+        header_row.setSpacing(20)
+        header_row.setContentsMargins(0, 0, 0, 0)
+
+        cover_lbl = QLabel()
+        pix = covers.extract_or_placeholder(
+            {"title": book.title}, book.source_format, book.source_path,
+        )
+        cover_lbl.setPixmap(
+            pix.scaled(96, 144, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        )
+        cover_lbl.setFixedSize(96, 144)
+        header_row.addWidget(cover_lbl, 0)
+
+        text_col = QVBoxLayout()
+        text_col.setSpacing(2)
+
         title = QLabel()
         title.setTextFormat(Qt.PlainText)  # prevent HTML injection in titles
         title.setText(book.title)
@@ -60,16 +81,16 @@ class SoulView(QScrollArea):
         title.setFont(f)
         title.setWordWrap(True)
         title.setStyleSheet(f"color: {PALETTE['text']};")
-        self.v.addWidget(title)
+        text_col.addWidget(title)
 
         if book.author:
             sub = QLabel(book.author)
             sub.setStyleSheet(f"color: {PALETTE['text_muted']}; font-size: 13px;")
-            self.v.addWidget(sub)
+            text_col.addWidget(sub)
 
         meta = QHBoxLayout()
         meta.setSpacing(20)
-        meta.setContentsMargins(0, 4, 0, 12)
+        meta.setContentsMargins(0, 8, 0, 4)
         for label, value, color in [
             ("chunks", str(book.chunk_count or 0), PALETTE["text"]),
             ("format", book.source_format.upper(), PALETTE["text"]),
@@ -83,7 +104,10 @@ class SoulView(QScrollArea):
             )
             meta.addWidget(chip)
         meta.addStretch(1)
-        self.v.addLayout(meta)
+        text_col.addLayout(meta)
+        header_row.addLayout(text_col, 1)
+        self.v.addLayout(header_row)
+
         self.v.addWidget(self._div())
 
         if soul.summary:

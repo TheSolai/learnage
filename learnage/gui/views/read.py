@@ -63,6 +63,10 @@ class ReadView(QWidget):
         tbh = QHBoxLayout(tb)
         tbh.setContentsMargins(20, 10, 20, 10)
         tbh.setSpacing(8)
+        self.cover_lbl = QLabel()
+        self.cover_lbl.setFixedSize(28, 42)
+        self.cover_lbl.setVisible(False)
+        tbh.addWidget(self.cover_lbl)
         self.title_lbl = QLabel("Pick a book to read")
         self.title_lbl.setTextFormat(Qt.PlainText)  # prevent HTML injection in titles
         self.title_lbl.setStyleSheet(
@@ -123,6 +127,15 @@ class ReadView(QWidget):
     def show_book(self, book: Book) -> None:
         self._book_id = book.id
         self.title_lbl.setText(book.title + (f"  ·  {book.author}" if book.author else ""))
+        # Cover thumbnail in the toolbar
+        from learnage.gui import covers as _covers
+        pix = _covers.extract_or_placeholder(
+            {"title": book.title}, book.source_format, book.source_path,
+        )
+        self.cover_lbl.setPixmap(
+            pix.scaled(28, 42, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        )
+        self.cover_lbl.setVisible(True)
         self._chunks = self.vectors.get_all_chunks(book.id)
         self.nav.clear()
         if not self._chunks:
