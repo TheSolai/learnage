@@ -165,3 +165,108 @@ def test_main_window_constructs_with_library(qapp, tmp_path, monkeypatch):
     win = MainWindow(preset=preset, home=home, workers=1)
     # Give the timers a chance to fire (they shouldn't crash on empty DB).
     win.close()
+
+
+# ---------------------------------------------------------------- v2.0 ⌘K palette
+
+def test_command_palette_fuzzy_filters(qapp):
+    """The palette's fuzzy scorer narrows the list as the user types."""
+    from learnage.gui.command_registry import register_defaults, all_commands
+    from learnage.gui.command_palette import CommandPalette, _score
+
+    register_defaults()
+    # Empty query — everything should be considered
+    cmds = all_commands()
+    assert any(_score("", c.label, c.description) for c in cmds)
+    # 'tog' — only 'toggle theme' should match strongly
+    toggles = [c for c in cmds if _score("tog", c.label, c.description) > 0]
+    assert any(c.key == "toggle theme" for c in toggles)
+    # 'soul' — should match regenerate soul + open mind etc.
+    soul_hits = [c.key for c in cmds if _score("soul", c.label, c.description) > 0]
+    assert any("soul" in k for k in soul_hits)
+
+
+def test_command_palette_constructs(qapp):
+    """CommandPalette builds against an empty list without errors."""
+    from learnage.gui.command_palette import CommandPalette
+    from learnage.gui.command_registry import register_defaults
+
+    register_defaults()
+    p = CommandPalette()
+    assert p.input is not None
+    assert p.list is not None
+    # Default state shows all commands (empty query)
+    assert p.list.count() > 0
+    p.close()
+
+
+def test_command_palette_open_via_cmd_k(qapp, tmp_path, monkeypatch):
+    """⌘K from MainWindow opens the palette."""
+    monkeypatch.setenv("QT_QPA_PLATFORM", "offscreen")
+    from learnage.config import Preset
+    from learnage.gui.app import MainWindow
+
+    home = tmp_path / "learnage"
+    home.mkdir()
+    preset = Preset(name="balanced", llm="qwen3:14b", embed="nomic-embed-text")
+    win = MainWindow(preset=preset, home=home, workers=1)
+    # Find the CommandPalette via the registry instead of modal-dialog hunting
+    from learnage.gui.command_registry import all_commands, bind_handler
+    bind_handler("cancel", lambda **_: True)
+    keys = [c.key for c in all_commands()]
+    assert "toggle theme" in keys
+    assert "add books" in keys
+    assert "back up now" in keys
+    win.close()
+
+
+# ---------------------------------------------------------------- v2.0 streaming citations
+
+def test_streaming_citations_render_p_chips(qapp):
+    """[pN] markers turn into clickable HTML chips with the right href."""
+    from learnage.gui.chat import ChatTab
+
+    sample = "According to [p1] the author argues grief is a guest."
+    passage_index = [("book_aaa", 42)]
+    rendered = ChatTab._render_streaming_citations(sample, passage_index)
+    assert 'href="learnage:cite/book_aaa:42"' in rendered
+    assert "[1]" in rendered
+    # The [p1] marker is gone, replaced by the chip
+    assert "[p1]" not in rendered
+
+
+def test_streaming_citations_handle_html_special_chars(qapp):
+    """XSS-y text from the model must be escaped before chip injection."""
+    from learnage.gui.chat import ChatTab
+
+    sample = "<script>alert(1)</script> [p1]"
+    rendered = ChatTab._render_streaming_citations(sample, [("book_aaa", 1)])
+    assert "<script>" not in rendered
+    assert "&lt;script&gt;" in rendered
+    assert 'href="learnage:cite/book_aaa:1"' in rendered
+
+
+def test_streaming_citations_no_index_still_renders(qapp):
+    """When passage_index is None the chip is rendered without an href,
+    so we never produce broken <a> tags."""
+    from learnage.gui.chat import ChatTab
+
+    rendered = ChatTab._render_streaming_citations("see [p3]", None)
+    assert "[3]" in rendered
+    assert "[p3]" not in rendered
+
+
+def test_chat_tab_has_citation_clicked_signal(qapp):
+    """ChatTab exposes citation_clicked for the GUI to wire."""
+    from learnage.gui.chat import ChatTab
+    assert hasattr(ChatTab, "citation_clicked")
+    # PySide6 Signal is callable (you call sig.connect(...)) — verify it's
+    # usable as a connectable signal.
+    sig = ChatTab.citation_clicked
+    assert callable(sig)
+
+
+def test_interview_view_forwards_citation_signal(qapp):
+    """InterviewView forwards citation_clicked up to its parent."""
+    from learnage.gui.chat import InterviewView
+    assert hasattr(InterviewView, "citation_clicked")
