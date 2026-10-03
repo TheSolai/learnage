@@ -57,6 +57,9 @@ from learnage.store.vectors import VectorStore
 class ChatTab(QWidget):
     """Chat body. Reused by InterviewView and the popout window."""
 
+    # Emitted when a user clicks a [pN] citation chip in a streamed answer.
+    citation_clicked = Signal(str, int)  # book_id, chunk_index
+
     def __init__(self, library, vectors, ollama, preset, on_submit_ingest, on_submit_soul):
         super().__init__()
         self.library = library
@@ -270,6 +273,55 @@ class ChatTab(QWidget):
     def _copy_text(self, text: str) -> None:
         QApplication.clipboard().setText(text)
 
+    # ---------------------------------------------------------------- citations
+
+    @staticmethod
+    def _render_streaming_citations(text: str, passage_index: list[tuple[str, int]] | None = None) -> str:
+        """Turn ``[pN]`` markers in the streamed text into small clickable
+        chip links. Citations appear inline as the model types them.
+
+        Returns rich HTML safe to hand to ``QLabel.setHtml()``.
+
+        ``passage_index`` is the parallel list ``[(book_id, chunk_index), ...]``
+        populated by AgentRunner._passage_index. We use it to resolve
+        each ``[pN]`` marker to a clickable ``learnage:cite/<book>:<chunk>``
+        URL so a click can open the source book.
+        """
+        # Escape first, then transform. We avoid running the regex on
+        # un-escaped text because the model can emit "&" in code etc.
+        safe = html_escape(text)
+        # Replace [pN] with a chip link. If we have a passage_index,
+        # encode the (book_id, chunk_index) into the URL.
+        import re as _re
+        chip_style = (
+            f'color:{PALETTE["accent"]};text-decoration:none;font-weight:600;'
+            f'font-size:11px;padding:0 4px;border-radius:8px;'
+            f'background:{PALETTE["selection"]};margin:0 2px;'
+        )
+
+        def _chip(match: "_re.Match[str]") -> str:
+            n = int(match.group(1))
+            href = ""
+            if passage_index and 1 <= n <= len(passage_index):
+                bid, chunk = passage_index[n - 1]
+                href = f' href="learnage:cite/{bid}:{chunk}"'
+            return f'<a{href} style="{chip_style}">[{n}]</a>'
+
+        return _re.sub(r"\[p(\d+)\]", _chip, safe)
+
+    def _open_citation(self, url: str) -> None:
+        """Handle clicks on rendered citation chips."""
+        # URL format: learnage:cite/<book_id>:<chunk_index>
+        if url.startswith("learnage:cite/"):
+            payload = url[len("learnage:cite/"):]
+            if ":" in payload:
+                bid, chunk_str = payload.split(":", 1)
+                try:
+                    chunk_index = int(chunk_str)
+                except ValueError:
+                    return
+                self.citation_clicked.emit(bid, chunk_index)
+
     def _status_toast(self, msg: str) -> None:
         """Briefly flash a status message in the composer area."""
         for i in range(self.log_v.count()):
@@ -346,6 +398,11 @@ class ChatTab(QWidget):
             on_submit_soul=self.on_submit_soul,
             restrict_book_ids=self._restrict_book_ids,
         )
+        # The pre-search populates runner._passage_index. We capture it
+        # by reference so on_token can resolve [pN] markers to real
+        # (book_id, chunk_index) links.
+        self._runner_ref = runner
+        self._citation_signals_connected = False
 
         def on_token(t: str) -> None:
             self._thinking_timer.stop()
@@ -353,7 +410,16 @@ class ChatTab(QWidget):
                 self._thinking_dots.setVisible(False)
             self._pending.append(t)
             full = "".join(self._pending)
-            bubble.setText(html_escape(full))
+            # Render with inline citation chips — appears as the model types.
+            rendered = self._render_streaming_citations(
+                full, getattr(runner, "_passage_index", None),
+            )
+            bubble.setTextFormat(Qt.RichText)
+            bubble.setText(rendered)
+            bubble.setTextInteractionFlags(Qt.TextBrowserInteraction)
+            if not self._citation_signals_connected:
+                bubble.linkActivated.connect(self._open_citation)
+                self._citation_signals_connected = True
             if hasattr(self, "_last_copy_ref"):
                 self._last_copy_ref[0] = full
 
@@ -453,6 +519,7 @@ class ToolCard(QFrame):
 
 class InterviewView(QWidget):
     popout_requested = Signal(str)
+    citation_clicked = Signal(str, int)  # forwarded from ChatTab
 
     def __init__(self, library, vectors, ollama, preset, on_submit_ingest, on_submit_soul):
         super().__init__()
@@ -515,6 +582,8 @@ class InterviewView(QWidget):
             preset=preset, on_submit_ingest=on_submit_ingest,
             on_submit_soul=on_submit_soul,
         )
+        # Forward citation clicks up so MainWindow can open the source book.
+        self.chat.citation_clicked.connect(self.citation_clicked.emit)
         layout.addWidget(self.chat, 1)
 
     def show_book(self, book: Book) -> None:

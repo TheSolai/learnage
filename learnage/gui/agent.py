@@ -341,6 +341,10 @@ class AgentRunner(QRunnable):
         self.on_submit_soul = on_submit_soul
         self.restrict_book_ids = restrict_book_ids
         self.signals = _AgentSignals()
+        # Index of passages injected into the pre-search prompt. Populated
+        # in _run(). Each entry is (book_id, chunk_index). Used by the
+        # chat UI to wire [pN] citations back to specific passages.
+        self._passage_index: list[tuple[str, int]] = []
 
     def run(self) -> None:
         try:
@@ -423,15 +427,22 @@ class AgentRunner(QRunnable):
                 )
                 if passages:
                     ctx_lines = []
-                    for p in passages[:5]:
+                    # Use [pN] markers in the prompt so the model picks
+                    # them up and the chat renderer can convert them into
+                    # clickable chips that resolve back to (book_id,
+                    # chunk_index).
+                    self._passage_index = []  # idx -> (book_id, chunk_index)
+                    for i, p in enumerate(passages[:5], start=1):
                         title = self.library.get_book(p.book_id)
                         title_str = title.title if title else p.book_id
                         ch = f" — {p.chapter}" if p.chapter else ""
-                        ctx_lines.append(f"[{title_str}{ch}] {p.text[:600]}")
+                        ctx_lines.append(f"[p{i}] {title_str}{ch}\n{p.text[:600]}")
+                        self._passage_index.append((p.book_id, p.chunk_index))
                     context = "\n\n".join(ctx_lines)
                     user_msg = (
                         f"{self.question}\n\n"
-                        f"— Retrieved passages —\n{context}"
+                        f"— Retrieved passages (cite as [pN] in your reply) —\n"
+                        f"{context}"
                     )
             except Exception:  # noqa: BLE001
                 pass
