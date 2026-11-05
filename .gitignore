@@ -25,3 +25,6 @@ Thumbs.db
 
 # uv
 uv.lock.local
+
+# Machine-specific launcher stub (hardcoded venv path)
+Learnage.app/
